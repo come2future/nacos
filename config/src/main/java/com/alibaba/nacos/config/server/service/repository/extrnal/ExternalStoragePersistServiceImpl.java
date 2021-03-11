@@ -978,6 +978,7 @@ public class ExternalStoragePersistServiceImpl implements PersistService {
         PaginationHelper<ConfigInfo> helper = createPaginationHelper();
         final String appName = configAdvanceInfo == null ? null : (String) configAdvanceInfo.get("appName");
         final String configTags = configAdvanceInfo == null ? null : (String) configAdvanceInfo.get("config_tags");
+        final String userLimit = configAdvanceInfo == null ? null : (String) configAdvanceInfo.get("userLimit");
         String sqlCount = "select count(*) from config_info";
         String sql = "select ID,data_id,group_id,tenant_id,app_name,content,type from config_info";
         StringBuilder where = new StringBuilder(" where ");
@@ -990,6 +991,9 @@ public class ExternalStoragePersistServiceImpl implements PersistService {
             
             where.append(" a.tenant_id=? ");
             
+            if (StringUtils.isNotBlank(userLimit)) {
+                where.append(userLimit.replace("group_id", "a.group_id"));
+            }
             if (StringUtils.isNotBlank(dataId)) {
                 where.append(" and a.data_id=? ");
                 paramList.add(dataId);
@@ -1015,6 +1019,9 @@ public class ExternalStoragePersistServiceImpl implements PersistService {
             where.append(") ");
         } else {
             where.append(" tenant_id=? ");
+            if (StringUtils.isNotBlank(userLimit)) {
+                where.append(userLimit);
+            }
             if (StringUtils.isNotBlank(dataId)) {
                 where.append(" and data_id=? ");
                 paramList.add(dataId);

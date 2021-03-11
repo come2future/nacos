@@ -20,11 +20,17 @@ import com.alibaba.nacos.api.config.ConfigType;
 import com.alibaba.nacos.api.exception.NacosException;
 import com.alibaba.nacos.auth.annotation.Secured;
 import com.alibaba.nacos.auth.common.ActionTypes;
+import com.alibaba.nacos.auth.common.AuthConfigs;
+import com.alibaba.nacos.auth.exception.AccessException;
 import com.alibaba.nacos.common.model.RestResult;
 import com.alibaba.nacos.common.model.RestResultUtils;
 import com.alibaba.nacos.common.utils.MapUtil;
 import com.alibaba.nacos.common.utils.NamespaceUtil;
 import com.alibaba.nacos.config.server.auth.ConfigResourceParser;
+import com.alibaba.nacos.config.server.auth.PermissionInfo;
+import com.alibaba.nacos.config.server.auth.PermissionPersistService;
+import com.alibaba.nacos.config.server.auth.RoleInfo;
+import com.alibaba.nacos.config.server.auth.RolePersistService;
 import com.alibaba.nacos.config.server.constant.Constants;
 import com.alibaba.nacos.config.server.controller.parameters.SameNamespaceCloneConfigBean;
 import com.alibaba.nacos.config.server.model.ConfigAdvanceInfo;
@@ -48,6 +54,8 @@ import com.alibaba.nacos.config.server.utils.RequestUtil;
 import com.alibaba.nacos.config.server.utils.TimeUtils;
 import com.alibaba.nacos.config.server.utils.ZipUtils;
 import com.alibaba.nacos.sys.utils.InetUtils;
+import io.jsonwebtoken.ExpiredJwtException;
+import io.jsonwebtoken.Jwts;
 import org.apache.catalina.connector.Request;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.commons.lang3.time.DateFormatUtils;
@@ -56,6 +64,7 @@ import org.apache.tomcat.util.http.Parameters;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -103,6 +112,8 @@ public class ConfigController {
     
     private static final String EXPORT_CONFIG_FILE_NAME_DATE_FORMAT = "yyyyMMddHHmmss";
     
+    private static final String GLOBAL_ADMIN_ROLE = "ROLE_ADMIN";
+    
     @Autowired
     private ConfigServletInner inner;
     
@@ -111,6 +122,18 @@ public class ConfigController {
     
     @Autowired
     private ConfigSubService configSubService;
+    
+    @Autowired
+    private AuthConfigs authConfigs;
+    
+    @Autowired
+    private PermissionPersistService permissionPersistService;
+    
+    @Autowired
+    private RolePersistService rolePersistService;
+    
+    @Value("${nacos.core.auth.enabled:false}")
+    private boolean authEnabled;
     
     /**
      * Adds or updates non-aggregated data.
@@ -392,13 +415,27 @@ public class ConfigController {
      * Query the configuration information and return it in JSON format.
      */
     @GetMapping(params = "search=accurate")
-    @Secured(action = ActionTypes.READ, parser = ConfigResourceParser.class)
-    public Page<ConfigInfo> searchConfig(@RequestParam("dataId") String dataId, @RequestParam("group") String group,
+    public Page<ConfigInfo> searchConfig(HttpServletRequest request,
+            @RequestParam(value = "accessToken", required = false) String accessToken,
+            @RequestParam("dataId") String dataId, @RequestParam("group") String group,
             @RequestParam(value = "appName", required = false) String appName,
             @RequestParam(value = "tenant", required = false, defaultValue = StringUtils.EMPTY) String tenant,
             @RequestParam(value = "config_tags", required = false) String configTags,
-            @RequestParam("pageNo") int pageNo, @RequestParam("pageSize") int pageSize) {
+            @RequestParam("pageNo") int pageNo, @RequestParam("pageSize") int pageSize) throws NacosException {
         Map<String, Object> configAdvanceInfo = new HashMap<String, Object>(100);
+        if (authEnabled) {
+            try {
+                accessToken = getAccessToken(request, accessToken);
+                String userName = Jwts.parserBuilder().setSigningKey(authConfigs.getSecretKeyBytes()).build()
+                        .parseClaimsJws(accessToken).getBody().getSubject();
+                String userLimit = getUserPermissionStr(userName, tenant);
+                configAdvanceInfo.put("userLimit", userLimit);
+            } catch (ExpiredJwtException e) {
+                throw new AccessException("token expired!");
+            } catch (Exception e) {
+                throw e;
+            }
+        }
         if (StringUtils.isNotBlank(appName)) {
             configAdvanceInfo.put("appName", appName);
         }
@@ -412,6 +449,51 @@ public class ConfigController {
             LOGGER.error(errorMsg, e);
             throw new RuntimeException(errorMsg, e);
         }
+    }
+    
+    /**
+     * get token with no login
+     */
+    private String getAccessToken(HttpServletRequest request, String accessToken) throws NacosException {
+        if (null == accessToken) {
+            accessToken = request.getHeader("accessToken");
+            if (null == accessToken) {
+                throw new NacosException(NacosException.NO_RIGHT, "accessToken is null!");
+            }
+            return accessToken;
+        }
+        return accessToken;
+    }
+    
+    /**
+     * assembling user sql limit group
+     */
+    private String getUserPermissionStr(String userName, String namespace) throws NacosException {
+        StringBuffer sb = new StringBuffer();
+        sb.append(" and group_id in (");
+        int count = 0;
+        Page<RoleInfo> roles = rolePersistService.getRolesByUserName(userName, 1, Integer.MAX_VALUE);
+        for (RoleInfo role : roles.getPageItems()) {
+            if (GLOBAL_ADMIN_ROLE.equals(role.getRole())) {
+                return null;
+            }
+            Page<PermissionInfo> permissions = permissionPersistService
+                    .getPermissions(role.getRole(), 1, Integer.MAX_VALUE);
+            for (PermissionInfo permissionInfo : permissions.getPageItems()) {
+                String[] split = permissionInfo.getResource().split(":");
+                if (split[0].equals(namespace)) {
+                    if ("*".equals(split[1])) {
+                        return null;
+                    }
+                    sb.append("'").append(split[1]).append("'").append(",");
+                    count++;
+                }
+            }
+        }
+        if (count <= 0) {
+            throw new AccessException("authorization failed!");
+        }
+        return sb.deleteCharAt(sb.length() - 1).append(") ").toString();
     }
     
     /**
