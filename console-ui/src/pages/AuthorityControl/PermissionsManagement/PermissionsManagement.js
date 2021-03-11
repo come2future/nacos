@@ -110,7 +110,7 @@ class PermissionsManagement extends React.Component {
                 return itemNamespace === namespace;
               });
               const { namespaceShowName = '', namespace = '' } = item;
-              return namespaceShowName + (namespace ? ` (${namespace})` : '');
+              return namespaceShowName + '(' + value + ')';
             }}
           />
           <Table.Column

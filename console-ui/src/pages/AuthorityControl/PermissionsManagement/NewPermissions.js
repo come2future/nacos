@@ -92,6 +92,12 @@ class NewPermissions extends React.Component {
           onOk={() => {
             const vals = this.check();
             if (vals) {
+              const groupValue = this.field.getValue('groupName');
+              if (null != groupValue && groupValue.trim().length > 0) {
+                vals[1] = vals[1] + groupValue + ':*';
+              } else {
+                vals[1] = vals[1] + '*:*';
+              }
               onOk(vals).then(() => onCancel());
             }
           }}
@@ -117,11 +123,19 @@ class NewPermissions extends React.Component {
                 style={{ width: '100%' }}
               >
                 {namespaces.map(({ namespace, namespaceShowName }) => (
-                  <Option value={`${namespace}:*:*`}>
+                  <Option value={`${namespace}:`}>
                     {namespaceShowName} {namespace ? `(${namespace})` : ''}
                   </Option>
                 ))}
               </Select>
+            </FormItem>
+            <FormItem label={locale.groupName}>
+              <Input
+                name="groupName"
+                style={{ width: '100%' }}
+                trim
+                placeholder={locale.groupPlaceholder}
+              />
             </FormItem>
             <FormItem label={locale.action} required help={getError('action')}>
               <Select
