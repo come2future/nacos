@@ -31,7 +31,7 @@ import java.util.List;
 import static com.alibaba.nacos.console.security.nacos.roles.NacosRoleServiceImpl.GLOBAL_ADMIN_ROLE;
 
 /**
- * LDAP auth provider
+ * LDAP auth provider.
  *
  * @author zjw
  */
