@@ -452,7 +452,7 @@ public class ConfigController {
     }
     
     /**
-     * get token with no login
+     * get token with no login.
      */
     private String getAccessToken(HttpServletRequest request, String accessToken) throws NacosException {
         if (null == accessToken) {
@@ -466,7 +466,7 @@ public class ConfigController {
     }
     
     /**
-     * assembling user sql limit group
+     * assembling user sql limit group.
      */
     private String getUserPermissionStr(String userName, String namespace) throws NacosException {
         StringBuffer sb = new StringBuffer();
