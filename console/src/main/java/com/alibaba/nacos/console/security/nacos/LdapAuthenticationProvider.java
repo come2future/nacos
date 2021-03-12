@@ -62,6 +62,8 @@ public class LdapAuthenticationProvider implements AuthenticationProvider {
     
     private static final String DEFAULT_PASSWORD = "nacos";
     
+    private static final String LDAP_PREFIX = "LDAP_";
+    
     @Autowired
     private NacosUserDetailsServiceImpl userDetailsService;
     
@@ -97,12 +99,12 @@ public class LdapAuthenticationProvider implements AuthenticationProvider {
         
         UserDetails userDetails;
         try {
-            userDetails = userDetailsService.loadUserByUsername(username);
+            userDetails = userDetailsService.loadUserByUsername(LDAP_PREFIX + username);
         } catch (UsernameNotFoundException exception) {
             String nacosPassword = PasswordEncoderUtil.encode(DEFAULT_PASSWORD);
-            userDetailsService.createUser(username, nacosPassword);
+            userDetailsService.createUser(LDAP_PREFIX + username, nacosPassword);
             User user = new User();
-            user.setUsername(username);
+            user.setUsername(LDAP_PREFIX + username);
             user.setPassword(nacosPassword);
             userDetails = new NacosUserDetails(user);
         }
