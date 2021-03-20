@@ -72,10 +72,17 @@ public class ConfigResourceParser implements ResourceParser {
         
         sb.append(Resource.SPLITTER);
         
-        if (StringUtils.isBlank(dataId)) {
-            sb.append("*").append(Resource.SPLITTER).append(AUTH_CONFIG_PREFIX).append("*");
+        if (StringUtils.isNotBlank(groupName)) {
+            sb.append(groupName);
         } else {
-            sb.append(groupName).append(Resource.SPLITTER).append(AUTH_CONFIG_PREFIX).append(dataId);
+            sb.append("*");
+        }
+        sb.append(Resource.SPLITTER).append(AUTH_CONFIG_PREFIX);
+        
+        if (StringUtils.isNotBlank(dataId)) {
+            sb.append(dataId);
+        } else {
+            sb.append("*");
         }
         
         return sb.toString();
