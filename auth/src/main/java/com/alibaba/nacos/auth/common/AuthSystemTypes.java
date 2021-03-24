@@ -29,5 +29,8 @@ public enum AuthSystemTypes {
      * Nacos builtin auth system.
      */
     NACOS,
+    /**
+     * LDAP.
+     */
     LDAP
 }
